@@ -5,32 +5,36 @@
 
 #define NUM_THREADS 3
 #define NUM_CYCLES 10 
+#define MESSAGES_PER_THREAD 3
 #define threadsKeepRunning 1
 
+// Define a print function to print the message (simulates the printer task).
+int print(char *message) {
+    printf("%s\n", message);
+    return 0;
+}
 
-
-void clean_up_callback_func(void *arg) { // define a cleanup call backfucn which will be called upon thread termination/cancelation.
+// Define a cleanup callback function, which will be called upon thread termination/cancelation.
+void clean_up_callback_func(void *arg) {
     event_node *event_node_to_delete = (event_node *)arg;
     if (event_node_to_delete != NULL) {
-        free(event_node_to_delete->message); // freeing the producer dynamic allocated strinv.
-        free(event_node_to_delete);         
+        free(event_node_to_delete->message); // Freeing the producer dynamically allocated string.
+        free(event_node_to_delete);
     }
 }
 
-void* producer_thread_func(void *args)
-{
-shared_event_queue* shared_events_queue = (shared_event_queue*) args;
+// Producer thread function
+void* producer_thread_func(void *args) {
+    shared_event_queue* shared_events_queue = (shared_event_queue*)args;
 
-    for(int k=0; k < NUM_CYCLES; k++)
-    {
-        for(int j = 0; j<NUM_THREADS; j ++)
-        {
+    for (int k = 0; k < NUM_CYCLES; k++) {
+        for (int m = 0; m < MESSAGES_PER_THREAD; m++) {
             pthread_mutex_lock(&shared_events_queue->dm_queue_mutex);
-
-            char* newMessage; 
 /*             asprintf(&newMessage, "hey, I am thread num %ld and this message number %d", (long) pthread_self(), shared_events_queue->dm_count); // The `asprintf` function handles both the memory allocation and string formatting in a single step. it will allocate enough space in message for "hey, i am thread num <thread_id>, and this is message number <current_amount_of_messages_in_the_q>". (replaces malloc, strcpy, strcat).
  */
-            if (asprintf(&newMessage, "hey, I am thread num %ld and this message number %d", (long)pthread_self(), shared_events_queue->dm_count) == -1) {
+            char* newMessage;
+            if (asprintf(&newMessage, "hey, I am thread num %ld and this message number %d",
+                         (long)pthread_self(), shared_events_queue->dm_count) == -1) {
                 printf("asprintf failed\n");
                 pthread_mutex_unlock(&shared_events_queue->dm_queue_mutex);
                 continue;
@@ -38,78 +42,61 @@ shared_event_queue* shared_events_queue = (shared_event_queue*) args;
 
             event_node* new_event_node = initlize_node(newMessage);
 
-            if(shared_events_queue->dm_tail == NULL) // if the queue is empty 
+            if (shared_events_queue->dm_tail == NULL) // we insert new events to the end of the quque - hence no way the queue is not empty if dm_tail == NULL. (in case we sent a request to the server and he is bussy ATM, we just wait untill he is available to process our request)
             {
                 shared_events_queue->dm_tail = new_event_node;
                 shared_events_queue->dm_head = new_event_node;
-            }else{
-                shared_events_queue->dm_tail->next = new_event_node; // adds new node to the end of the queue.
+            } else {
+                shared_events_queue->dm_tail->next = new_event_node;
+                shared_events_queue->dm_tail = new_event_node;
             }
 
             shared_events_queue->dm_count++;
-            pthread_cond_signal(&shared_events_queue->dm_cond_queue_not_empty); // signal the waiting thread that the queue is no longer empty. 
+            pthread_cond_signal(&shared_events_queue->dm_cond_queue_not_empty);  // signal the condwaiting thread that the queue is no longer empty. 
 
             pthread_mutex_unlock(&shared_events_queue->dm_queue_mutex);
-
         }
-        sleep(1);
 
+        sleep(1); // Sleep after producing all messages for this cycle.
     }
-
+    return NULL;
 }
 
+// Consumer thread function
+void* consumer_thread_func(void *args)
+{
+    shared_event_queue* shared_events_queue = (shared_event_queue*)args;
 
+    while (threadsKeepRunning) {
+        pthread_mutex_lock(&shared_events_queue->dm_queue_mutex);
 
-
-void *consumer_thread_func(void *args) {
-
-    shared_event_queue *shared_events_queue = (shared_event_queue *)args;
-
-    pthread_mutex_lock(&shared_events_queue->dm_queue_mutex);
-
-    while (threadsKeepRunning) 
-    { 
-
-        while (shared_events_queue->dm_head == NULL) // we insert new events to the end of the quque - hence no way the queue is not empty if dm_tail == NULL. (in case we sent a request to the server and he is bussy ATM, we just wait untill he is available to process our request)
-        {   
-             pthread_cond_wait(&shared_events_queue->dm_cond_queue_not_empty, &shared_events_queue->dm_queue_mutex);
+        while (shared_events_queue->dm_head == NULL && threadsKeepRunning) { 
+            pthread_cond_wait(&shared_events_queue->dm_cond_queue_not_empty, &shared_events_queue->dm_queue_mutex);
         }
 
-        if (!threadsKeepRunning)
-        {
-        pthread_mutex_unlock(&shared_events_queue->dm_queue_mutex);
-        break;
+        if (!threadsKeepRunning) {
+            pthread_mutex_unlock(&shared_events_queue->dm_queue_mutex);
+            break;
         }
 
-        event_node *node = shared_events_queue->dm_head; // remove a node task from the head of the list.
+        event_node* node = shared_events_queue->dm_head;
+        shared_events_queue->dm_head = shared_events_queue->dm_head->next;
 
-        shared_events_queue->dm_head = shared_events_queue->dm_head->next;  // sets a new head. 
-
-        if (shared_events_queue->dm_head == NULL)
-        {
+        if (shared_events_queue->dm_head == NULL) {
             shared_events_queue->dm_tail = NULL;
         }
-        shared_events_queue->dm_count--;
 
         pthread_mutex_unlock(&shared_events_queue->dm_queue_mutex);
 
-        pthread_cleanup_push(clean_up_callback_func, node); // register the callback function.
-        print(node->message); // execute the task (aka send the message to the printer...)
-        pthread_cleanup_pop(1);  // pops the clean_up_callback_func and execute it --> free the dynamic node alocation.
-
+        pthread_cleanup_push(clean_up_callback_func, node);
+        print(node->message);
+        pthread_cleanup_pop(1);
     }
 
     return NULL;
 }
 
-
-
-
-
-
-
-
-
+// Initialize threads (producers and consumers).
 void init_thread_func(shared_event_queue* shared_events_queue) {
     pthread_t producer_threads[NUM_THREADS];
     pthread_t consumer_threads[NUM_THREADS];
@@ -125,27 +112,11 @@ void init_thread_func(shared_event_queue* shared_events_queue) {
     }
 }
 
-
-
-
-
-int print(char *message) {
-	printf("%s\n", message);
-	return 0;
-}
-
-
-int main ()
-{
-    shared_event_queue* shared_event_queue =queue_init();
+// Main function
+int main() {
+    shared_event_queue* shared_event_queue = queue_init();
 
     init_thread_func(shared_event_queue);
-    // sleep()
 
     return 0;
 }
-
-
-
-
-
