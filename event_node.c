@@ -12,6 +12,6 @@ event_node *initlize_node(char* message)
 
     new_event_node->message = NULL;
     new_event_node->next = NULL;
-
+    
     return new_event_node;
 }
