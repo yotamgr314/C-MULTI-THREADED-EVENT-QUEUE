@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "event_queue.h": "c",
+        "shared_event_queue.h": "c"
+    }
+}
