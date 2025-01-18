@@ -1,4 +1,4 @@
-#include "node.h"
+#include "event_node.h"
 #include <stdlib.h>
 
 event_node *initlize_node(char* message)

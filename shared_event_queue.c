@@ -21,19 +21,4 @@ shared_event_queue* queue_init(void)
 
 
 
-void queue_add_event_node(shared_event_queue* shared_event_queue, char* new_message)
-{
-    event_node* new_event_node = initlize_node(new_message);
-
-    if(shared_event_queue->tail == NULL) // if the queue is empty. 
-    {
-        shared_event_queue->head = new_event_node;
-        shared_event_queue->tail = new_event_node;
-    }
-
-    shared_event_queue->tail = new_event_node;
-
-    //pthread_cond_signal(signal the consumer thread that an event as been added).
-}
-
 

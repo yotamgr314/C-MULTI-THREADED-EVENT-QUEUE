@@ -1,3 +1,4 @@
+
 typedef struct event_node {
 char* message;
 struct event_node* next;
