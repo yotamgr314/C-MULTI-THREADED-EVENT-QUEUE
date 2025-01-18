@@ -5,10 +5,16 @@
 #define NUM_THREADS 3
 
 
-void *producer_thread_func(void *args)
+void* producer_thread_func(void *args)
 {
     // recivies shared_event_queueu as arguments (passed behind the scenese to void *args parameter.)
     shared_event_queue* shared_event_queue = (shared_event_queue*) args;
+    // int asprintf(char **pointer-to-Char*, const char *format, ...); NOTE: asprintf automatically allocates memory to fit the formatted string, including the null terminator (\0).
+    char* message; 
+    // it will allocate enough space in message for "hey, i am thread num <thread_id>, and this is message number <current_amount_of_messages_in_the_q>". (replaces malloc, strcpy, strcat).
+    asprintf(&message, "hey, I am thread num %ld and this message number %d", (long) pthread_self(), queue->count); // The `asprintf` function handles both the memory allocation and string formatting in a single step.
+
+
     // dynamicly allocate memory for the newly event_task(eg.. message)
     // enqueue a new task_event by calling the enqueue function to the shared_event_queue. (eg.. inserting the new task.)
 }
