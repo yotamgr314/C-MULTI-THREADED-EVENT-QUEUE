@@ -1,4 +1,0 @@
-problems to be solved:
-01) mannage shared memory access leads to race condition--> prob via mutex.
-02) checking if buffer is full.
-03) checking if buffer is empty. 
